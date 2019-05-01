@@ -43,14 +43,25 @@ class RangeWrapper(_NetWrapperBase):
                              hand_info = hand_info)
 
             return nnf.softmax(pred, dim=-1).cpu().numpy()
+    
+    def get_a_probs_tensor(self, pub_obses, range_idxs, legal_actions_lists, hand_info):
+        ## with torch.no_grad(): <--- this function is used in training
+        masks = rl_util.batch_get_legal_action_mask_torch(n_actions=self._env_bldr.N_ACTIONS,
+                                                          legal_actions_lists=legal_actions_lists,
+                                                          device=self.device)
+        masks = masks.view(1, -1)
+        pred = self._net(pub_obses=pub_obses,
+                         range_idxs=torch.from_numpy(range_idxs).to(dtype=torch.long, device=self.device),
+                         legal_action_masks=masks,
+                         hand_info = hand_info)
+
+        return nnf.softmax(pred, dim=-1).cpu() #.numpy() removed to stay in Tensor form
         
-    def get_range_probs(self, pub_obses, range_idxs, legal_actions_lists):
-        with torch.no_grad():
-            return self._net.range_net(pub_obses=pub_obses, range_idxs=range_idxs)
-        
-        
-    """
-    def get_a_probs_for_each_hand(self, pub_obs, legal_actions_list):
+    def get_range_probs(self, pub_obses, range_idxs):
+        ## with torch.no_grad(): <--- this function is used in training
+        return self._net.range_net(pub_obses=pub_obses, range_idxs=range_idxs)
+    
+    def get_a_probs_for_each_hand(self, pub_obs, legal_actions_list, hand_info):
         with torch.no_grad():
             mask = rl_util.get_legal_action_mask_torch(n_actions=self._env_bldr.N_ACTIONS,
                                                        legal_actions_list=legal_actions_list,
@@ -59,10 +70,12 @@ class RangeWrapper(_NetWrapperBase):
 
             pred = self._net(pub_obses=[pub_obs] * self._env_bldr.rules.RANGE_SIZE,
                              range_idxs=self._all_range_idxs,
-                             legal_action_masks=mask)
+                             legal_action_masks=mask,
+                             hand_info = hand_info)
 
             return nnf.softmax(pred, dim=1).cpu().numpy()
-
+        
+    """
     def _mini_batch_loop(self, buffer, grad_mngr):
         batch_pub_obs, \
         batch_range_idxs, \
